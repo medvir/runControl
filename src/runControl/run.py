@@ -21,6 +21,7 @@ import sys
 import os
 from functools import reduce
 import pandas as pd
+import glob
 
 MEAN_MIN_THRESHOLD = 0.2
 MEAN_MAX_THRESHOLD = 0.8
@@ -102,13 +103,12 @@ def prepare_runkos(main_dir, discard_file=None):
     list_dfs_var = []
 
     file_csv_list = []
-    for file_csv in os.listdir(main_dir):
+    for file_csv in glob.glob(os.path.join(main_dir, '*.csv')):
         # Ignore the file that is given as the validation dataset
         if discard_file and file_csv == discard_file:
             continue
-        file_path = "%s/%s" % (main_dir, file_csv)
         dataframe = []
-        dataframe = pd.read_csv(file_path)
+        dataframe = pd.read_csv(file_csv)
         # Ignore Insertions by getting only the first entity of the nucleotide at each row
         dataframe['mut'] = dataframe.apply(lambda row: row['mut'][0], axis=1)
         # Ignore insertion and deletions by merging the rows with equal pos and mut
@@ -167,7 +167,8 @@ def analyze_sample_variable_sites(input_file, nt_m_std_filtered):
     # Divide filtered positions by training positions
     valid_sample_points = sample_df_filtered.shape[0]
     score_sample = float(valid_sample_points)/training_points
-
+    
+    df_towrite = pd.merge(nt_m_std_filtered, sample_df_filtered, how='outer', right_index=True, left_index=True)
     report_file = "score_report.txt"
     with open(report_file, 'w') as rep_f:
         rep_f.write("The run control score is %f. \n" % score_sample)
@@ -175,6 +176,10 @@ def analyze_sample_variable_sites(input_file, nt_m_std_filtered):
                     % (valid_sample_points, training_points))
         if score_sample < 1:
             rep_f.write("WARNING, run control score is below 1. \n")
+        
+        rep_f.write("\nMean and standard deviation of mutation frequencies in the training dataset followed by the mutation frequencies in the current sample in the last four columns.\n\n")
+        dfAsString = df_towrite.to_string(header=True, index=True)
+        rep_f.write(dfAsString)
 
     return score_sample
 
@@ -183,8 +188,9 @@ def main(filein):
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     # Provide the training datasets directory.
+    #training_dir = "runko_nt_csv_667037_training"
     training_dir = "runko_nt_csv_424736_training"
-    training_full_path = "%s/%s" % (base_dir, training_dir)
+    training_full_path = os.path.join(base_dir, training_dir) #"%s/%s" % (base_dir, training_dir)
     if not os.path.exists(training_full_path):
         logging.error("The training dir %s does not exists." % training_full_path)
         sys.exit("The training dir %s does not exists." % training_full_path)
